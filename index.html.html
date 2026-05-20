@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Figma Controller</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; }
+        
+        /* Background iframe rendering your live Figma prototype */
+        #figma-frame { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 1; }
+
+        /* Bluetooth connection control bar at the top */
+        #ble-header { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; background: rgba(0,0,0,0.8); padding: 8px 16px; border-radius: 20px; color: white; display: flex; gap: 10px; align-items: center; }
+        button.control-btn { background: #007aff; border: none; color: white; padding: 6px 12px; border-radius: 12px; font-weight: bold; }
+
+        /* Transparent interactive overlay layout */
+        .hitbox-container { position: absolute; width: 100%; height: 100%; top: 0; left: 0; z-index: 5; pointer-events: none; }
+        
+        /* Invisible tappable hot-zones over your Figma graphics */
+        .hitbox { 
+            position: absolute; 
+            pointer-events: auto; 
+            border-radius: 24px; /* Matches your Figma design token */
+            background: rgba(255, 0, 0, 0.0); /* Keep 0.0 for invisible. Switch to 0.2 to visually debug alignment */
+            cursor: pointer;
+        }
+        
+        /* Exact pixel configurations converted to iPhone 13 viewport percentages */
+        #btn-a { 
+            top: 40.76%; 
+            left: 52.31%; 
+            width: 39.23%; 
+            height: 18.36%; 
+        }
+        #btn-d { 
+            top: 40.76%; 
+            left: 8.21%; 
+            width: 39.23%; 
+            height: 18.36%; 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ble-header">
+        <span id="status">🔴 Disconnected</span>
+        <button class="control-btn" onclick="connectBLE()">Connect ESP32</button>
+    </div>
+
+    <iframe id="figma-frame" src="https://www.figma.com/embed?embed_host=share&url=https://www.figma.com/proto/8uum2yb7rPyzdTs1jyotZn/Untitled?node-id=0-1&t=cjGB8Uqvw2018jnL-1"></iframe>
+
+    <div class="hitbox-container">
+        <div id="btn-a" class="hitbox" onclick="sendBLE('a')"></div>
+        <div id="btn-d" class="hitbox" onclick="sendBLE('d')"></div>
+    </div>
+
+    <script>
+        let txCharacteristic = null;
+        const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+        const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+        async function connectBLE() {
+            document.getElementById('status').innerText = "⏳ Connecting...";
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32-Figma-Controller' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+                
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                txCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+                
+                document.getElementById('status').innerText = "🟢 Connected!";
+            } catch (error) {
+                console.error(error);
+                document.getElementById('status').innerText = "❌ Connection Failed";
+            }
+        }
+
+        async function sendBLE(charCommand) {
+            if (!txCharacteristic) return;
+            try {
+                const encoder = new TextEncoder();
+                await txCharacteristic.writeValue(encoder.encode(charCommand));
+            } catch (error) {
+                console.error("Transmission error:", error);
+            }
+        }
+    </script>
+</body>
+</html>
